@@ -1,74 +1,120 @@
+<div align="center">
+
 # xrdp-multiuser-guide
 
-Get a Windows-style remote desktop on a cloud VM. Multi-user, Ubuntu 26.04, RDP over the plain internet — connect with any RDP client.
+**A Windows-style remote desktop on a cloud VM.**
+*Multi-user · Ubuntu 26.04 · one paste · five minutes.*
+
+</div>
 
 ---
 
-## Option A — Brand-new cloud VM (recommended)
+```
+   ┌─────────────────┐         ┌──────────────────────┐         ┌─────────────┐
+   │  You (any RDP   │ ──RDP─► │   Cloud VM           │ ──HTTP─►│   iProxy    │
+   │  client, any OS)│ :33890  │   Ubuntu 26.04 +XFCE │  proxy  │   phones    │
+   └─────────────────┘         └──────────────────────┘         └─────────────┘
+                                     ▲
+                                     │
+                              put the VM as close
+                              to the phones as you can
+```
 
-Pick your provider. Each one ends the same way: paste a file, boot, connect.
-
-### Before you start
-
-1. Open [`cloud-init.yml`](cloud-init.yml) → click the **Raw** button → **Ctrl-A, Ctrl-C** to copy it all.
-2. Paste it into a text editor (Notepad is fine).
-3. Edit the block marked **EDIT HERE**:
-   - `xrdp_users:` — change names and pick strong passwords.
-   - `rdp_port:` — leave at `33890` unless you have a reason.
-   - `ufw_allow_from:` — leave `any`, or restrict to your home IP/CIDR.
-4. Select all → copy again. You'll paste this customised version below.
-
-### DigitalOcean
-
-1. **Create → Droplets**.
-2. **Region**: pick the one closest to your users.
-3. **OS**: Ubuntu **26.04 (LTS) x64**.
-4. **CPU options**: at least **2 GB RAM** per concurrent user.
-5. **Authentication**: a root password is fine — you won't need it.
-6. Open **Advanced options** → tick **Add Initialization scripts (cloud-init)** → paste your edited file.
-7. **Create Droplet**. Wait ~5 min after it shows as Active.
-
-### Vultr
-
-1. **Deploy → Deploy New Server**.
-2. **Server Type**: Cloud Compute.
-3. **Location**: closest to your users.
-4. **Image**: Ubuntu **26.04 LTS x64**.
-5. **Plan**: at least 2 GB RAM per user.
-6. Scroll to **Additional Features** → expand **User Data** → paste your edited file.
-7. **Deploy Now**. Wait ~5 min after it shows as Running.
-
-### Hetzner Cloud
-
-1. **+ Add Server**.
-2. **Location**: closest to your users.
-3. **Image**: Ubuntu **26.04**.
-4. **Type**: at least 2 GB RAM (CX22 or larger).
-5. Scroll to **Cloud config** → paste your edited file.
-6. **Create & Buy now**. Wait ~5 min after the green dot appears.
-
-### AWS / Azure / GCP / OVH / others
-
-Any provider with a "User Data" / "Custom data" / "Startup script" field for a fresh Ubuntu **26.04** VM works the same way: paste the edited `cloud-init.yml`, boot.
+> ### Where should the VM live?
+> **Close to your proxies (the phones)** — same state where possible, or within roughly **200–500 km**. The latency that matters is **VM ↔ phones**, not you ↔ VM (RDP tolerates 100 ms+ just fine; HTTP through a proxy doesn't).
+>
+> For US phones → a US-East/US-West datacentre in the matching half of the country. EU phones → Frankfurt / Amsterdam / Helsinki. SE-Asia phones → Singapore. Never pick a region "near home" unless your phones happen to be there.
 
 ---
 
-## Connect with RDP
+## Option A — Fresh cloud VM (recommended)
 
-After ~5 minutes the VM is ready.
+You'll do this once per VM, in about five minutes.
 
-**Windows** — Start menu → **Remote Desktop Connection** (mstsc) →
-&nbsp;&nbsp;&nbsp;&nbsp;Computer: `<vm-public-ip>:33890` → Connect → username/password from your `cloud-init.yml`.
+### 1. Grab the file
 
-**macOS** — App Store → **Microsoft Remote Desktop** → Add PC → same host/port.
+Open [`cloud-init.yml`](cloud-init.yml) → click **Raw** → **Ctrl-A, Ctrl-C**.
 
-**iPhone / Android** — **RD Client** app from the store → same host/port.
+Paste it into a text editor (Notepad is fine) and edit the block marked **`EDIT HERE`**:
+
+```yaml
+rdp_port: 33890
+ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
+xrdp_users:
+  - { name: alice, password: "ChangeMe-Alice-2026" }
+  - { name: bob,   password: "ChangeMe-Bob-2026"   }
+```
+
+Pick **strong, unique passwords** — these accounts log in over the plain internet.
+
+Select all → copy again. You'll paste this edited version below.
+
+---
+
+### 2. Create the VM
+
+Pick your provider. Same shape everywhere: Ubuntu 26.04, ≥ 2 GB RAM per concurrent user, paste the file into "User Data".
+
+<details open>
+<summary><b>DigitalOcean</b></summary>
+
+1. **Create → Droplets**
+2. **Region** — datacentre nearest the phones
+3. **OS** — Ubuntu **26.04 (LTS) x64**
+4. **Size** — at least 2 GB RAM per user
+5. **Authentication** — root password is fine; you won't use SSH
+6. Open **Advanced options** → tick **Add Initialization scripts (cloud-init)** → paste your edited file
+7. **Create Droplet** → wait ~5 min after it shows **Active**
+
+</details>
+
+<details open>
+<summary><b>Vultr</b></summary>
+
+1. **Deploy → Deploy New Server**
+2. **Server Type** — Cloud Compute
+3. **Location** — datacentre nearest the phones
+4. **Image** — Ubuntu **26.04 LTS x64**
+5. **Plan** — at least 2 GB RAM per user
+6. Scroll to **Additional Features** → expand **User Data** → paste your edited file
+7. **Deploy Now** → wait ~5 min after it shows **Running**
+
+</details>
+
+<details open>
+<summary><b>Hetzner Cloud</b></summary>
+
+1. **+ Add Server**
+2. **Location** — datacentre nearest the phones
+3. **Image** — Ubuntu **26.04**
+4. **Type** — at least 2 GB RAM (CX22 or larger)
+5. Scroll to **Cloud config** → paste your edited file
+6. **Create & Buy now** → wait ~5 min after the green dot appears
+
+</details>
+
+> **Any other provider** (AWS, Azure, GCP, OVH, Linode…) works too — any "User Data" / "Custom data" / "Startup script" field on a fresh Ubuntu 26.04 VM accepts the same paste.
+
+---
+
+### 3. Connect
+
+Wait until ~5 minutes after boot. Then:
+
+| Client OS | App | Where to put the host |
+|---|---|---|
+| Windows | Remote Desktop Connection (`mstsc`) | `<vm-public-ip>:33890` |
+| macOS | Microsoft Remote Desktop (App Store) | Add PC → same host |
+| iOS / Android | **RD Client** | Add PC → same host |
+| Linux | Remmina / FreeRDP | Same host |
+
+Username + password are the ones from your `cloud-init.yml`.
 
 ---
 
 ## Option B — Already have an Ubuntu 26.04 VM?
 
-SSH in and run:
+SSH in and:
 
 ```bash
 git clone https://github.com/iproxy-online/xrdp-multiuser-guide.git
@@ -76,12 +122,15 @@ cd xrdp-multiuser-guide
 sudo ./setup-and-run.sh
 ```
 
-You'll be asked for the RDP port, source CIDR, and a comma-separated user list. Set each user's password afterwards with `sudo passwd <name>`.
+You'll be asked for the RDP port, source CIDR, and a comma-separated user list. Set passwords afterwards with `sudo passwd <name>`.
 
 ---
 
-## Troubles?
+## Troubleshooting
 
-- **Can't connect at all** — your provider may have its own firewall on top of the VM. Make sure inbound TCP on your `rdp_port` (default 33890) is allowed.
-- **Connects, then black screen** — wait another minute on first login (XFCE first-run setup), then reconnect.
-- **Wrong password** — `cloud-init.yml` was pasted before you edited it. Destroy the VM and start again with an edited copy.
+| Symptom | Most likely cause |
+|---|---|
+| **Can't connect at all** | Provider's outer firewall blocks `rdp_port` (UFW alone can't help). Open inbound TCP on it. |
+| **Wrong password** | You pasted `cloud-init.yml` before editing it. Destroy the VM, edit, retry. |
+| **Connect → black screen** | First-run XFCE setup. Wait a minute, reconnect. |
+| **Laggy when using a proxy** | VM is too far from the phones. Move the VM, not the client. |
