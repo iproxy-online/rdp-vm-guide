@@ -1,5 +1,5 @@
 ---
-# Multi-user xRDP on Ubuntu 26.04, plain RDP over the internet.
+# Multi-user xRDP on Ubuntu 24.04+, plain RDP over the internet.
 # Standalone — no external roles, no collections beyond community.general
 # (shipped with the apt `ansible` package).
 #
@@ -28,8 +28,8 @@
       ansible.builtin.assert:
         that:
           - ansible_facts['distribution'] == "Ubuntu"
-          - ansible_facts['distribution_version'] == "26.04"
-        fail_msg: "This playbook targets Ubuntu 26.04 only (got {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }})."
+          - ansible_facts['distribution_version'] is version('24.04', '>=')
+        fail_msg: "This playbook targets Ubuntu 24.04 or newer (got {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }})."
 
     - name: Sanity-check inputs
       ansible.builtin.assert:
