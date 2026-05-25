@@ -22,9 +22,9 @@
     - name: Sanity-check the OS
       ansible.builtin.assert:
         that:
-          - ansible_distribution == "Ubuntu"
-          - ansible_distribution_version == "26.04"
-        fail_msg: "This playbook targets Ubuntu 26.04 only (got {{ ansible_distribution }} {{ ansible_distribution_version }})."
+          - ansible_facts['distribution'] == "Ubuntu"
+          - ansible_facts['distribution_version'] == "26.04"
+        fail_msg: "This playbook targets Ubuntu 26.04 only (got {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }})."
 
     - name: Sanity-check inputs
       ansible.builtin.assert:
@@ -145,10 +145,12 @@
         group: root
         mode: "0644"
         content: |
+          # fail2ban requires every failregex line to contain <HOST>
+          # (or <ADDR>) so it can extract the offender's IP. Lines without
+          # one are rejected at startup with "No failure-id group".
           [Definition]
           failregex = ^.*\[ERROR\] .*authentication failed.*from <HOST>.*$
                       ^.*\[INFO \] .*login failed for user .* from <HOST>.*$
-                      ^.*\[ERROR\] .*scp_v0s_accept: not pwd.*$
           ignoreregex =
       notify: Restart fail2ban
 

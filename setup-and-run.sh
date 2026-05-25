@@ -100,17 +100,26 @@ echo "    allow from: $ALLOW_FROM"
 echo "    users:      $USERS_JSON"
 echo
 
+EXTRA_VARS="$(
+  python3 - <<PY
+import json, sys
+print(json.dumps({
+    "rdp_port": int("$RDP_PORT"),
+    "ufw_allow_from": "$ALLOW_FROM",
+    "xrdp_users": json.loads('''$USERS_JSON'''),
+}))
+PY
+)"
+
 ansible-playbook \
   -i 'localhost,' \
   -c local \
-  -e "rdp_port=${RDP_PORT}" \
-  -e "ufw_allow_from=${ALLOW_FROM}" \
-  -e "xrdp_users=${USERS_JSON}" \
+  -e "$EXTRA_VARS" \
   "$PLAYBOOK"
 
 # ---- 5. post-run hints ------------------------------------------------------
 
-PUBLIC_IP="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+PUBLIC_IP="$(python3 -c 'import urllib.request as u; print(u.urlopen("https://api.ipify.org", timeout=3).read().decode())' 2>/dev/null || hostname -I | awk '{print $1}')"
 
 cat <<EOF
 
