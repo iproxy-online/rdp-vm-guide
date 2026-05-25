@@ -1,24 +1,13 @@
 <div align="center">
 
-# xrdp-multiuser-guide
+# rdp-vm-guide
 
-**A Windows-style remote desktop on a cloud VM.**
+**A Windows-style remote desktop on a cloud VM, sitting next to your mobile proxies.**
 *Multi-user · Ubuntu 26.04 · one paste · five minutes.*
 
 </div>
 
 ---
-
-```
-   ┌─────────────────┐         ┌──────────────────────┐         ┌─────────────┐
-   │  You (any RDP   │ ──RDP─► │   Cloud VM           │ ──HTTP─►│   iProxy    │
-   │  client, any OS)│ :33890  │   Ubuntu 26.04 +XFCE │  proxy  │   phones    │
-   └─────────────────┘         └──────────────────────┘         └─────────────┘
-                                     ▲
-                                     │
-                              put the VM as close
-                              to the phones as you can
-```
 
 > ### Where should the VM live?
 > **Close to your proxies (the phones)** — same state where possible, or within roughly **200–500 km**. The latency that matters is **VM ↔ phones**, not you ↔ VM (RDP tolerates 100 ms+ just fine; HTTP through a proxy doesn't).
@@ -117,8 +106,8 @@ Username + password are the ones from your `cloud-init.yml`.
 SSH in and:
 
 ```bash
-git clone https://github.com/iproxy-online/xrdp-multiuser-guide.git
-cd xrdp-multiuser-guide
+git clone https://github.com/iproxy-online/rdp-vm-guide.git
+cd rdp-vm-guide
 sudo ./setup-and-run.sh
 ```
 
