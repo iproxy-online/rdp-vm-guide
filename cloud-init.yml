@@ -1,0 +1,252 @@
+#cloud-config
+# =====================================================================
+#  xRDP multi-user — one-paste install for a fresh Ubuntu 26.04 VM.
+#
+#  HOW TO USE:
+#    1. Edit the block marked "EDIT HERE" below (users/passwords/port).
+#    2. Paste this WHOLE FILE into your cloud provider's
+#       "User Data" / "Cloud Config" field when creating the VM.
+#    3. Pick Ubuntu 26.04 as the image. Boot. Wait ~5 minutes.
+#    4. Connect with any RDP client to <VM-public-IP>:<rdp_port>.
+# =====================================================================
+
+write_files:
+
+  - path: /opt/xrdp-multiuser/vars.yml
+    permissions: '0600'
+    owner: root:root
+    content: |
+      # >>>>>>>>>>>>>>>>>>>>>>> EDIT HERE >>>>>>>>>>>>>>>>>>>>>>>
+      rdp_port: 33890
+      ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
+      xrdp_users:
+        - { name: alice, password: "ChangeMe-Alice-2026" }
+        - { name: bob,   password: "ChangeMe-Bob-2026"   }
+      # <<<<<<<<<<<<<<<<<<<<<<< END EDIT  <<<<<<<<<<<<<<<<<<<<<<<
+
+  - path: /opt/xrdp-multiuser/site.yml
+    permissions: '0644'
+    owner: root:root
+    content: |
+      ---
+      - name: xRDP multi-user setup
+        hosts: all
+        become: true
+
+        vars:
+          rdp_port: 33890
+          ufw_allow_from: any
+          xrdp_users: []
+
+        pre_tasks:
+          - name: Sanity-check the OS
+            ansible.builtin.assert:
+              that:
+                - ansible_facts['distribution'] == "Ubuntu"
+                - ansible_facts['distribution_version'] == "26.04"
+              fail_msg: "This playbook targets Ubuntu 26.04 only."
+
+          - name: Sanity-check inputs
+            ansible.builtin.assert:
+              that:
+                - rdp_port | int >= 1024
+                - rdp_port | int <= 65535
+                - xrdp_users | length > 0
+              fail_msg: "Need rdp_port in 1024-65535 and at least one entry in xrdp_users."
+
+        tasks:
+          - name: Normalize xrdp_users to a list of dicts
+            ansible.builtin.set_fact:
+              _xrdp_users: >-
+                {{
+                  xrdp_users
+                  | map('community.general.dict_kv', 'name')
+                  | list
+                  if (xrdp_users | first) is string
+                  else xrdp_users
+                }}
+
+          - name: Refresh apt cache
+            ansible.builtin.apt:
+              update_cache: true
+              cache_valid_time: 3600
+
+          - name: Install xRDP, XFCE, fail2ban, ufw
+            ansible.builtin.apt:
+              name:
+                - xfce4
+                - xfce4-goodies
+                - xrdp
+                - xorgxrdp
+                - dbus-x11
+                - xubuntu-wallpapers
+                - fail2ban
+                - ufw
+                - python3-passlib
+              state: present
+              install_recommends: false
+
+          - name: Add xrdp service user to ssl-cert
+            ansible.builtin.user:
+              name: xrdp
+              groups: ssl-cert
+              append: true
+            notify: Restart xrdp
+
+          - name: Bind xrdp to the chosen port
+            community.general.ini_file:
+              path: /etc/xrdp/xrdp.ini
+              section: Globals
+              option: port
+              value: "tcp://0.0.0.0:{{ rdp_port }}"
+              no_extra_spaces: true
+              owner: root
+              group: root
+              mode: "0644"
+            notify: Restart xrdp
+
+          - name: Tune sesman.ini (persistent multi-user sessions)
+            community.general.ini_file:
+              path: /etc/xrdp/sesman.ini
+              section: Sessions
+              option: "{{ item.option }}"
+              value: "{{ item.value }}"
+              no_extra_spaces: true
+              owner: root
+              group: root
+              mode: "0644"
+            loop:
+              - { option: MaxSessions,           value: "50" }
+              - { option: KillDisconnected,      value: "false" }
+              - { option: DisconnectedTimeLimit, value: "0" }
+              - { option: IdleTimeLimit,         value: "0" }
+            notify: Restart xrdp
+
+          - name: Create RDP users
+            ansible.builtin.user:
+              name: "{{ item.name }}"
+              password: "{{ (item.password | password_hash('sha512')) if item.password is defined else omit }}"
+              update_password: on_create
+              shell: /bin/bash
+              groups: ssl-cert
+              append: true
+              create_home: true
+              state: present
+            loop: "{{ _xrdp_users }}"
+            loop_control:
+              label: "{{ item.name }}"
+            no_log: "{{ item.password is defined }}"
+
+          - name: Drop XFCE .xsessionrc for each user
+            ansible.builtin.copy:
+              dest: "/home/{{ item.name }}/.xsessionrc"
+              owner: "{{ item.name }}"
+              group: "{{ item.name }}"
+              mode: "0644"
+              content: |
+                export XDG_SESSION_TYPE=x11
+                export XDG_CURRENT_DESKTOP=XFCE
+                exec startxfce4
+            loop: "{{ _xrdp_users }}"
+            loop_control:
+              label: "{{ item.name }}"
+
+          - name: Enable systemd linger (sessions survive disconnect)
+            ansible.builtin.command:
+              cmd: "loginctl enable-linger {{ item.name }}"
+              creates: "/var/lib/systemd/linger/{{ item.name }}"
+            loop: "{{ _xrdp_users }}"
+            loop_control:
+              label: "{{ item.name }}"
+
+          - name: UFW — allow SSH
+            community.general.ufw:
+              rule: allow
+              port: "22"
+              proto: tcp
+              comment: SSH
+
+          - name: UFW — allow xRDP
+            community.general.ufw:
+              rule: allow
+              port: "{{ rdp_port }}"
+              proto: tcp
+              from_ip: "{{ ufw_allow_from }}"
+              comment: xRDP
+
+          - name: UFW — enable with default deny
+            community.general.ufw:
+              state: enabled
+              policy: deny
+
+          - name: fail2ban — install xrdp filter
+            ansible.builtin.copy:
+              dest: /etc/fail2ban/filter.d/xrdp.conf
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                [Definition]
+                failregex = ^.*\[ERROR\] .*authentication failed.*from <HOST>.*$
+                            ^.*\[INFO \] .*login failed for user .* from <HOST>.*$
+                ignoreregex =
+            notify: Restart fail2ban
+
+          - name: fail2ban — install xrdp jail
+            ansible.builtin.copy:
+              dest: /etc/fail2ban/jail.d/xrdp.local
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                [xrdp]
+                enabled  = true
+                port     = {{ rdp_port }}
+                filter   = xrdp
+                logpath  = /var/log/xrdp-sesman.log
+                maxretry = 5
+                findtime = 10m
+                bantime  = 1h
+            notify: Restart fail2ban
+
+          - name: Ensure xrdp log exists so fail2ban can attach to it
+            ansible.builtin.file:
+              path: /var/log/xrdp-sesman.log
+              state: touch
+              owner: root
+              group: root
+              mode: "0640"
+            changed_when: false
+
+          - name: Enable and start xrdp
+            ansible.builtin.systemd:
+              name: xrdp
+              enabled: true
+              state: started
+
+          - name: Enable and start fail2ban
+            ansible.builtin.systemd:
+              name: fail2ban
+              enabled: true
+              state: started
+
+        handlers:
+          - name: Restart xrdp
+            ansible.builtin.systemd:
+              name: xrdp
+              state: restarted
+
+          - name: Restart fail2ban
+            ansible.builtin.systemd:
+              name: fail2ban
+              state: restarted
+
+package_update: true
+package_upgrade: false
+packages:
+  - ansible
+
+runcmd:
+  - [ ansible-playbook, -i, "localhost,", -c, local,
+      /opt/xrdp-multiuser/site.yml,
+      -e, "@/opt/xrdp-multiuser/vars.yml" ]

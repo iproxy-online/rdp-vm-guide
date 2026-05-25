@@ -3,11 +3,13 @@
 # Standalone — no external roles, no collections beyond community.general
 # (shipped with the apt `ansible` package).
 #
-# Run via setup-and-run.sh, or directly:
-#   sudo ansible-playbook -i 'localhost,' -c local site.yml \
-#     -e rdp_port=33890 \
-#     -e ufw_allow_from=any \
-#     -e '{"xrdp_users":["alice","bob"]}'
+# `xrdp_users` accepts either form:
+#   - plain names (password set manually after install via `sudo passwd <u>`):
+#       xrdp_users: [alice, bob]
+#   - dicts with passwords (set during install, used by cloud-init.yml):
+#       xrdp_users:
+#         - { name: alice, password: "secret-1" }
+#         - { name: bob,   password: "secret-2" }
 
 - name: xRDP multi-user setup
   hosts: all
@@ -35,6 +37,17 @@
         fail_msg: "Need rdp_port in 1024-65535 and at least one entry in xrdp_users."
 
   tasks:
+    - name: Normalize xrdp_users to a list of dicts ({name, password?})
+      ansible.builtin.set_fact:
+        _xrdp_users: >-
+          {{
+            xrdp_users
+            | map('community.general.dict_kv', 'name')
+            | list
+            if (xrdp_users | first) is string
+            else xrdp_users
+          }}
+
     - name: Refresh apt cache
       ansible.builtin.apt:
         update_cache: true
@@ -51,6 +64,7 @@
           - xubuntu-wallpapers
           - fail2ban
           - ufw
+          - python3-passlib  # needed by password_hash() for setting RDP user passwords
         state: present
         install_recommends: false
 
@@ -90,33 +104,42 @@
         - { option: IdleTimeLimit,         value: "0" }
       notify: Restart xrdp
 
-    - name: Create RDP users (password set separately — see setup-and-run.sh output)
+    - name: Create RDP users
       ansible.builtin.user:
-        name: "{{ item }}"
+        name: "{{ item.name }}"
+        password: "{{ (item.password | password_hash('sha512')) if item.password is defined else omit }}"
+        update_password: on_create
         shell: /bin/bash
         groups: ssl-cert
         append: true
         create_home: true
         state: present
-      loop: "{{ xrdp_users }}"
+      loop: "{{ _xrdp_users }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: "{{ item.password is defined }}"
 
     - name: Drop XFCE .xsessionrc for each user
       ansible.builtin.copy:
-        dest: "/home/{{ item }}/.xsessionrc"
-        owner: "{{ item }}"
-        group: "{{ item }}"
+        dest: "/home/{{ item.name }}/.xsessionrc"
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
         mode: "0644"
         content: |
           export XDG_SESSION_TYPE=x11
           export XDG_CURRENT_DESKTOP=XFCE
           exec startxfce4
-      loop: "{{ xrdp_users }}"
+      loop: "{{ _xrdp_users }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Enable systemd linger (sessions survive disconnect)
       ansible.builtin.command:
-        cmd: "loginctl enable-linger {{ item }}"
-        creates: "/var/lib/systemd/linger/{{ item }}"
-      loop: "{{ xrdp_users }}"
+        cmd: "loginctl enable-linger {{ item.name }}"
+        creates: "/var/lib/systemd/linger/{{ item.name }}"
+      loop: "{{ _xrdp_users }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: UFW — allow SSH
       community.general.ufw:

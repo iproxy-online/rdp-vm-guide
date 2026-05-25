@@ -1,27 +1,74 @@
 # xrdp-multiuser-guide
 
-One-shot installer for a multi-user XFCE remote desktop on **Ubuntu 26.04**,
-reachable over the plain internet with any RDP client. No Cloudflare, no
-Apache, no SSH tunnel.
-
-Ships:
-
-- `site.yml` — standalone Ansible playbook (idempotent)
-- `setup-and-run.sh` — wrapper: preflight, prompts, installs Ansible, runs the play locally
-- this README
+Get a Windows-style remote desktop on a cloud VM. Multi-user, Ubuntu 26.04, RDP over the plain internet — connect with any RDP client.
 
 ---
 
-## Prerequisites
+## Option A — Brand-new cloud VM (recommended)
 
-- Fresh **Ubuntu Server 26.04 LTS**, sudo access
-- Public IP, port `22` open in the cloud provider's firewall
-- ≥ 2 GB RAM per concurrent RDP user
-- Your cloud provider's firewall / security group will need the chosen RDP port opened too — UFW alone won't help if the VM is behind one
+Pick your provider. Each one ends the same way: paste a file, boot, connect.
+
+### Before you start
+
+1. Open [`cloud-init.yml`](cloud-init.yml) → click the **Raw** button → **Ctrl-A, Ctrl-C** to copy it all.
+2. Paste it into a text editor (Notepad is fine).
+3. Edit the block marked **EDIT HERE**:
+   - `xrdp_users:` — change names and pick strong passwords.
+   - `rdp_port:` — leave at `33890` unless you have a reason.
+   - `ufw_allow_from:` — leave `any`, or restrict to your home IP/CIDR.
+4. Select all → copy again. You'll paste this customised version below.
+
+### DigitalOcean
+
+1. **Create → Droplets**.
+2. **Region**: pick the one closest to your users.
+3. **OS**: Ubuntu **26.04 (LTS) x64**.
+4. **CPU options**: at least **2 GB RAM** per concurrent user.
+5. **Authentication**: a root password is fine — you won't need it.
+6. Open **Advanced options** → tick **Add Initialization scripts (cloud-init)** → paste your edited file.
+7. **Create Droplet**. Wait ~5 min after it shows as Active.
+
+### Vultr
+
+1. **Deploy → Deploy New Server**.
+2. **Server Type**: Cloud Compute.
+3. **Location**: closest to your users.
+4. **Image**: Ubuntu **26.04 LTS x64**.
+5. **Plan**: at least 2 GB RAM per user.
+6. Scroll to **Additional Features** → expand **User Data** → paste your edited file.
+7. **Deploy Now**. Wait ~5 min after it shows as Running.
+
+### Hetzner Cloud
+
+1. **+ Add Server**.
+2. **Location**: closest to your users.
+3. **Image**: Ubuntu **26.04**.
+4. **Type**: at least 2 GB RAM (CX22 or larger).
+5. Scroll to **Cloud config** → paste your edited file.
+6. **Create & Buy now**. Wait ~5 min after the green dot appears.
+
+### AWS / Azure / GCP / OVH / others
+
+Any provider with a "User Data" / "Custom data" / "Startup script" field for a fresh Ubuntu **26.04** VM works the same way: paste the edited `cloud-init.yml`, boot.
 
 ---
 
-## Quick start
+## Connect with RDP
+
+After ~5 minutes the VM is ready.
+
+**Windows** — Start menu → **Remote Desktop Connection** (mstsc) →
+&nbsp;&nbsp;&nbsp;&nbsp;Computer: `<vm-public-ip>:33890` → Connect → username/password from your `cloud-init.yml`.
+
+**macOS** — App Store → **Microsoft Remote Desktop** → Add PC → same host/port.
+
+**iPhone / Android** — **RD Client** app from the store → same host/port.
+
+---
+
+## Option B — Already have an Ubuntu 26.04 VM?
+
+SSH in and run:
 
 ```bash
 git clone https://github.com/iproxy-online/xrdp-multiuser-guide.git
@@ -29,103 +76,12 @@ cd xrdp-multiuser-guide
 sudo ./setup-and-run.sh
 ```
 
-You'll be prompted for:
-
-| Prompt | Default | Notes |
-|---|---|---|
-| RDP port | `33890` | Anything in `1024–65535`. Moving off `3389` cuts ~99% of dumb scans. |
-| Allow from | `any` | A CIDR like `203.0.113.0/24` is **strongly** recommended. `any` = open to the whole internet. |
-| Usernames | — | Comma-separated, e.g. `alice,bob`. Re-run with the full list to add more later. |
-
-Or non-interactive:
-
-```bash
-sudo RDP_PORT=33890 ALLOW_FROM=any USERS=alice,bob ./setup-and-run.sh
-```
-
-After it finishes, set each user's password:
-
-```bash
-sudo passwd alice
-sudo passwd bob
-```
-
-Connect from any RDP client — Windows `mstsc`, macOS Microsoft Remote Desktop,
-Linux Remmina, iOS/Android MS RD Client. Host: `your.ip:33890`.
+You'll be asked for the RDP port, source CIDR, and a comma-separated user list. Set each user's password afterwards with `sudo passwd <name>`.
 
 ---
 
-## What the playbook does
+## Troubles?
 
-- Installs XFCE, xrdp, xorgxrdp, dbus-x11, fail2ban, ufw
-- Adds `xrdp` to `ssl-cert` (so it can read its TLS key)
-- Binds xrdp to your chosen port (`/etc/xrdp/xrdp.ini` → `port=tcp://0.0.0.0:<PORT>`)
-- Tunes `sesman.ini` for persistent multi-user sessions
-  (`MaxSessions=50`, `KillDisconnected=false`, no idle/disconnect timeouts)
-- Creates each user, drops a per-user `~/.xsessionrc` that exec's `startxfce4`
-- `loginctl enable-linger` per user so sessions survive client disconnect
-- UFW: allow `22/tcp` and the RDP port (optionally source-restricted), default deny
-- fail2ban: custom filter + jail watching `/var/log/xrdp-sesman.log`
-  (5 fails in 10 min → 1 h ban)
-- Enables and starts `xrdp` and `fail2ban`
-
-Idempotent — re-running with the same inputs reports `changed=0`. Re-running
-with a longer userlist only adds the new ones.
-
----
-
-## Adding more users later
-
-Just re-run with the full list:
-
-```bash
-sudo USERS=alice,bob,carol ./setup-and-run.sh
-```
-
-Existing users are left alone; `carol` gets created, gets `.xsessionrc`,
-gets lingering enabled.
-
----
-
-## Running the playbook directly (without the wrapper)
-
-```bash
-sudo apt install -y ansible
-sudo ansible-playbook -i 'localhost,' -c local site.yml \
-  -e rdp_port=33890 \
-  -e ufw_allow_from=any \
-  -e '{"xrdp_users":["alice","bob"]}'
-```
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Black screen after login | `~/.xsessionrc` missing or wrong owner | Re-run the script — playbook writes it correctly per user |
-| Login screen → instant disconnect | xrdp can't read TLS key | Already handled by the play (`ssl-cert` group); check `journalctl -u xrdp -e` |
-| "Connection refused" from client | Cloud firewall, UFW, or wrong port | `sudo ss -tlnp \| grep xrdp`, `sudo ufw status`, check provider's security group |
-| Slow / laggy desktop | Falling back to Xvnc | Ensure `xorgxrdp` is installed; pick "Xorg" if xrdp shows a session dropdown |
-| Reconnect → fresh empty session | Linger off or `KillDisconnected=true` | Re-run; playbook sets both correctly |
-| `fail2ban-client status xrdp` says "not found" | Filter typo / log file missing | `sudo fail2ban-client -d 2>&1 \| grep -i error`, tail `/var/log/fail2ban.log` |
-
-Logs worth knowing:
-
-- `/var/log/xrdp.log` — connection, TLS, port binding
-- `/var/log/xrdp-sesman.log` — auth, session spawn (fail2ban watches this)
-- `/var/log/fail2ban.log` — bans and unbans
-- `journalctl -u xrdp -e` / `journalctl -u fail2ban -e`
-
----
-
-## Hardening checklist (open-internet RDP)
-
-- [x] Non-default RDP port (`RDP_PORT`, default 33890)
-- [ ] `ALLOW_FROM` restricted to a known CIDR (do this — `any` is loud)
-- [x] fail2ban xrdp jail active
-- [x] UFW default-deny
-- [ ] Strong passwords for every account — use a passphrase, not `Pass1234`
-- [ ] `PermitRootLogin no` in `/etc/ssh/sshd_config` (default on Ubuntu Server, but verify)
-- [ ] `unattended-upgrades` enabled so the box stays patched
-- [ ] Snapshot the VM before re-running this on an existing host — apt upgrades occasionally rewrite `xrdp.ini` / `sesman.ini`
+- **Can't connect at all** — your provider may have its own firewall on top of the VM. Make sure inbound TCP on your `rdp_port` (default 33890) is allowed.
+- **Connects, then black screen** — wait another minute on first login (XFCE first-run setup), then reconnect.
+- **Wrong password** — `cloud-init.yml` was pasted before you edited it. Destroy the VM and start again with an edited copy.
