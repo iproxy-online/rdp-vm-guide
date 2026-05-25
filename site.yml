@@ -8,8 +8,11 @@
 #       xrdp_users: [alice, bob]
 #   - dicts with passwords (set during install, used by cloud-init.yml):
 #       xrdp_users:
-#         - { name: alice, password: "secret-1" }
+#         - { name: alice, password: "secret-1", admin: true }
 #         - { name: bob,   password: "secret-2" }
+#
+# `admin: true` puts that user in the `sudo` group so they can run admin
+# tasks from a terminal inside their RDP session. Default: false.
 
 - name: xRDP multi-user setup
   hosts: all
@@ -53,7 +56,7 @@
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Install xRDP, XFCE, fail2ban, ufw
+    - name: Install xRDP, XFCE, Firefox, fail2ban, ufw
       ansible.builtin.apt:
         name:
           - xfce4
@@ -62,6 +65,7 @@
           - xorgxrdp
           - dbus-x11
           - xubuntu-wallpapers
+          - firefox
           - fail2ban
           - ufw
           - python3-passlib  # needed by password_hash() for setting RDP user passwords
@@ -110,13 +114,13 @@
         password: "{{ (item.password | password_hash('sha512')) if item.password is defined else omit }}"
         update_password: on_create
         shell: /bin/bash
-        groups: ssl-cert
+        groups: "{{ ['ssl-cert', 'sudo'] if (item.admin | default(false)) else ['ssl-cert'] }}"
         append: true
         create_home: true
         state: present
       loop: "{{ _xrdp_users }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item.name }}{{ ' (admin)' if (item.admin | default(false)) else '' }}"
       no_log: "{{ item.password is defined }}"
 
     - name: Drop XFCE .xsessionrc for each user

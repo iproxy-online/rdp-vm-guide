@@ -30,11 +30,13 @@ Paste it into a text editor (Notepad is fine) and edit the block marked **`EDIT 
 rdp_port: 33890
 ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
 xrdp_users:
-  - { name: alice, password: "ChangeMe-Alice-2026" }
+  - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
   - { name: bob,   password: "ChangeMe-Bob-2026"   }
 ```
 
 Pick **strong, unique passwords** — these accounts log in over the plain internet.
+
+Give `admin: true` to **one** user (it adds them to the `sudo` group). They'll run admin tasks from a terminal inside their own RDP session — no separate admin account, no extra attack surface. For emergencies (locked out, no network), use your cloud provider's **web console** to get a root shell out-of-band.
 
 Select all → copy again. You'll paste this edited version below.
 

@@ -20,7 +20,10 @@ write_files:
       rdp_port: 33890
       ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
       xrdp_users:
-        - { name: alice, password: "ChangeMe-Alice-2026" }
+        # `admin: true` = user gets sudo (runs apt update etc. from
+        # a terminal inside their RDP session). Give this to one
+        # account only, and pick a strong password for it.
+        - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
         - { name: bob,   password: "ChangeMe-Bob-2026"   }
       # <<<<<<<<<<<<<<<<<<<<<<< END EDIT  <<<<<<<<<<<<<<<<<<<<<<<
 
@@ -71,7 +74,7 @@ write_files:
               update_cache: true
               cache_valid_time: 3600
 
-          - name: Install xRDP, XFCE, fail2ban, ufw
+          - name: Install xRDP, XFCE, Firefox, fail2ban, ufw
             ansible.builtin.apt:
               name:
                 - xfce4
@@ -80,6 +83,7 @@ write_files:
                 - xorgxrdp
                 - dbus-x11
                 - xubuntu-wallpapers
+                - firefox
                 - fail2ban
                 - ufw
                 - python3-passlib
@@ -128,13 +132,13 @@ write_files:
               password: "{{ (item.password | password_hash('sha512')) if item.password is defined else omit }}"
               update_password: on_create
               shell: /bin/bash
-              groups: ssl-cert
+              groups: "{{ ['ssl-cert', 'sudo'] if (item.admin | default(false)) else ['ssl-cert'] }}"
               append: true
               create_home: true
               state: present
             loop: "{{ _xrdp_users }}"
             loop_control:
-              label: "{{ item.name }}"
+              label: "{{ item.name }}{{ ' (admin)' if (item.admin | default(false)) else '' }}"
             no_log: "{{ item.password is defined }}"
 
           - name: Drop XFCE .xsessionrc for each user
