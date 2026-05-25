@@ -119,7 +119,7 @@ You'll be asked for the RDP port, source CIDR, and a comma-separated user list. 
 
 You've got a working Linux desktop. Two pointers:
 
-- **Antidetect browser** — pick one with a native Linux build: **GoLogin**, **Multilogin (Mimic)**, **Indigo Browser**. AdsPower / Dolphin Anty / Octo / Linken Sphere are Windows-only.
+- **Antidetect browser** — most majors now ship a Linux build: **GoLogin**, **Multilogin (Mimic)**, **Indigo**, **Dolphin Anty**, **AdsPower**, **Incogniton**, **Octo** (Linux still in beta). The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
 - **Everything else** — ask ChatGPT. "I'm on Ubuntu 26.04 XFCE, how do I X?" handles install/config grunt-work just fine. :)
 
 ---
