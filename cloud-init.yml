@@ -397,6 +397,11 @@ write_files:
               creates: /opt/antidetect/gologin/Gologin-4.2.9
             when: install_antidetect | bool
 
+          # GoLogin is Electron and assumes a Secret Service backend
+          # (gnome-keyring etc.) for credential storage. On a minimal XFCE
+          # install no provider answers org.freedesktop.secrets and the
+          # whole app aborts; --password-store=basic falls back to a plain
+          # encrypted file in ~/.config and unblocks startup.
           - name: antidetect — GoLogin launcher + desktop entry
             ansible.builtin.copy:
               dest: /usr/share/applications/gologin.desktop
@@ -408,7 +413,7 @@ write_files:
                 Type=Application
                 Name=GoLogin
                 Comment=GoLogin antidetect browser
-                Exec=/bin/sh -c 'chmod +x /opt/antidetect/gologin/Gologin-* && exec /opt/antidetect/gologin/Gologin-*'
+                Exec=/bin/sh -c 'chmod +x /opt/antidetect/gologin/Gologin-* && exec /opt/antidetect/gologin/Gologin-* --no-sandbox --password-store=basic'
                 Icon=web-browser
                 Terminal=false
                 Categories=Network;WebBrowser;
@@ -437,6 +442,11 @@ write_files:
               mode: "0755"
             when: install_antidetect | bool
 
+          # Octo Browser is a PyInstaller-frozen binary that unpacks its
+          # PyQt6 libs into $TMPDIR on each launch. /tmp is tmpfs and only
+          # ~800 MB, which is not enough — extraction fails partway with a
+          # zlib decompression error and Octo exits silently. Redirect to
+          # /var/tmp (real disk) to fix.
           - name: antidetect — Octo Browser desktop entry
             ansible.builtin.copy:
               dest: /usr/share/applications/octobrowser.desktop
@@ -448,7 +458,7 @@ write_files:
                 Type=Application
                 Name=Octo Browser
                 Comment=Octo antidetect browser
-                Exec=/opt/antidetect/octobrowser/OctoBrowser.AppImage
+                Exec=env TMPDIR=/var/tmp /opt/antidetect/octobrowser/OctoBrowser.AppImage --no-sandbox
                 Icon=web-browser
                 Terminal=false
                 Categories=Network;WebBrowser;
