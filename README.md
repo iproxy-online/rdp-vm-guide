@@ -27,7 +27,7 @@ Select _all → copy again_. You'll paste this edited version below.
 
 ### 2. Create the VM
 
-Pick your provider. Same shape everywhere: Ubuntu 26.04 (24.04 should work too), ≥ 2 GB RAM per concurrent user, paste the file into "User Data".
+Pick your provider. Same shape everywhere: Ubuntu 26.04 (24.04 should work too), **≥ 1cpu + 2gb ram** per concurrent user, paste the file into "User Data".
 
 > ### Where should the VM live?
 > **Close to your proxies (the phones)** — same state where possible, or within roughly **200–500 km**.
