@@ -1,7 +1,5 @@
 <div align="center">
 
-# rdp-vm-guide
-
 **A Windows-style remote desktop on a cloud VM, sitting next to your mobile proxies.**
 
 </div>
