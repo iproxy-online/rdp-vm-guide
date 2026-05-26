@@ -3,7 +3,7 @@
 #
 # Usage:
 #   sudo ./setup-and-run.sh                # interactive prompts
-#   sudo RDP_PORT=33890 ALLOW_FROM=any USERS=alice,bob ./setup-and-run.sh   # non-interactive
+#   sudo RDP_PORT=3389 ALLOW_FROM=any USERS=alice,bob ./setup-and-run.sh   # non-interactive
 #
 # Idempotent: safe to re-run (e.g. to add more users — just include the
 # whole list each time, existing users are left alone).
@@ -45,8 +45,8 @@ ALLOW_FROM="${ALLOW_FROM:-}"
 USERS="${USERS:-}"
 
 if [[ -z "$RDP_PORT" ]]; then
-  read -rp "RDP port [33890]: " RDP_PORT
-  RDP_PORT="${RDP_PORT:-33890}"
+  read -rp "RDP port [3389]: " RDP_PORT
+  RDP_PORT="${RDP_PORT:-3389}"
 fi
 
 if [[ -z "$ALLOW_FROM" ]]; then

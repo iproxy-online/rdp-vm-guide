@@ -27,7 +27,7 @@ Open [`cloud-init.yml`](cloud-init.yml) → click **Raw** → **Ctrl-A, Ctrl-C**
 Paste it into a text editor (Notepad is fine) and edit the block marked **`EDIT HERE`**:
 
 ```yaml
-rdp_port: 33890
+rdp_port: 3389
 ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
 xrdp_users:
   - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
@@ -94,7 +94,7 @@ Wait until ~5 minutes after boot. Then:
 
 | Client OS | App | Where to put the host |
 |---|---|---|
-| Windows | Remote Desktop Connection (`mstsc`) | `<vm-public-ip>:33890` |
+| Windows | Remote Desktop Connection (`mstsc`) | `<vm-public-ip>` (default RDP port 3389) |
 | macOS | Microsoft Remote Desktop (App Store) | Add PC → same host |
 | iOS / Android | **RD Client** | Add PC → same host |
 | Linux | Remmina / FreeRDP | Same host |
