@@ -7,16 +7,7 @@
 
 </div>
 
----
-
-> ### Where should the VM live?
-> **Close to your proxies (the phones)** — same state where possible, or within roughly **200–500 km**. The latency that matters is **VM ↔ phones**, not you ↔ VM (RDP tolerates 100 ms+ just fine; HTTP through a proxy doesn't).
->
-> For US phones → a US-East/US-West datacentre in the matching half of the country. EU phones → Frankfurt / Amsterdam / Helsinki. SE-Asia phones → Singapore. Never pick a region "near home" unless your phones happen to be there.
-
----
-
-## Option A — Fresh cloud VM (recommended)
+## Quickstart
 
 You'll do this once per VM, in about five minutes.
 
@@ -27,24 +18,22 @@ Open [`cloud-init.yml`](cloud-init.yml) → click **Raw** → **Ctrl-A, Ctrl-C**
 Paste it into a text editor (Notepad is fine) and edit the block marked **`EDIT HERE`**:
 
 ```yaml
-rdp_port: 3389
-ufw_allow_from: any            # or a CIDR like 203.0.113.0/24
 xrdp_users:
   - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
-  - { name: bob,   password: "ChangeMe-Bob-2026"   }
 ```
 
-Pick **strong, unique passwords** — these accounts log in over the plain internet.
+Pick strong, unique passwords — these accounts log in over the plain internet.
 
-Give `admin: true` to **one** user (it adds them to the `sudo` group). They'll run admin tasks from a terminal inside their own RDP session — no separate admin account, no extra attack surface. For emergencies (locked out, no network), use your cloud provider's **web console** to get a root shell out-of-band.
-
-Select all → copy again. You'll paste this edited version below.
+Select _all → copy again_. You'll paste this edited version below.
 
 ---
 
 ### 2. Create the VM
 
-Pick your provider. Same shape everywhere: Ubuntu 26.04, ≥ 2 GB RAM per concurrent user, paste the file into "User Data".
+Pick your provider. Same shape everywhere: Ubuntu 26.04 (24.04 should work too), ≥ 2 GB RAM per concurrent user, paste the file into "User Data".
+
+> ### Where should the VM live?
+> **Close to your proxies (the phones)** — same state where possible, or within roughly **200–500 km**.
 
 <details open>
 <summary><b>Vultr</b> — recommended, widest choice of locations</summary>
@@ -117,7 +106,16 @@ Add PC → enter the VM's public IP as **PC name** → next to **Credentials** c
 
 ---
 
-## Option B — Already have an Ubuntu 26.04 VM?
+## What's next?
+
+You've got a working Linux desktop. Two pointers:
+
+- **Antidetect browser** — most majors now ship a Linux build: **GoLogin**, **Multilogin (Mimic)**, **Indigo**, **Dolphin Anty**, **AdsPower**, **Incogniton**, **Octo** (Linux still in beta). The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
+- **Everything else** — ask ChatGPT. "I'm on Ubuntu 26.04 XFCE, how do I X?" handles install/config grunt-work just fine. :)
+
+---
+
+## Advanced — Already have an Ubuntu 26.04 VM or want to reconfigure?
 
 SSH in and:
 
@@ -128,23 +126,3 @@ sudo ./setup-and-run.sh
 ```
 
 You'll be asked for the RDP port, source CIDR, and a comma-separated user list. Set passwords afterwards with `sudo passwd <name>`.
-
----
-
-## What's next?
-
-You've got a working Linux desktop. Two pointers:
-
-- **Antidetect browser** — most majors now ship a Linux build: **GoLogin**, **Multilogin (Mimic)**, **Indigo**, **Dolphin Anty**, **AdsPower**, **Incogniton**, **Octo** (Linux still in beta). The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
-- **Everything else** — ask ChatGPT. "I'm on Ubuntu 26.04 XFCE, how do I X?" handles install/config grunt-work just fine. :)
-
----
-
-## Troubleshooting
-
-| Symptom | Most likely cause |
-|---|---|
-| **Can't connect at all** | Provider's outer firewall blocks `rdp_port` (UFW alone can't help). Open inbound TCP on it. |
-| **Wrong password** | You pasted `cloud-init.yml` before editing it. Destroy the VM, edit, retry. |
-| **Connect → black screen** | First-run XFCE setup. Wait a minute, reconnect. |
-| **Laggy when using a proxy** | VM is too far from the phones. Move the VM, not the client. |
