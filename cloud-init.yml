@@ -296,6 +296,11 @@ write_files:
                 - cpio
                 - rpm2cpio
                 - unzip
+                # libfuse2t64 lets GoLogin and Octo (both AppImages) start;
+                # libayatana-appindicator3-1 is required by the Multilogin X
+                # agent (tray icon). Without these, those three exit silently.
+                - libfuse2t64
+                - libayatana-appindicator3-1
                 - libnss3
                 - libgbm1
                 - libgtk-3-0
