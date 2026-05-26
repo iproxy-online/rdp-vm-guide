@@ -110,7 +110,10 @@ Add PC → enter the VM's public IP as **PC name** → next to **Credentials** c
 
 You've got a working Linux desktop. Two pointers:
 
-- **Antidetect browser** — most majors now ship a Linux build: **GoLogin**, **Multilogin (Mimic)**, **Indigo**, **Dolphin Anty**, **AdsPower**, **Incogniton**, **Octo** (Linux still in beta). The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
+- **Antidetect browser** — six come preinstalled, ready in **Applications → Internet**: **AdsPower Global**, **Camoufox**, **Dolphin Anty**, **GoLogin**, **Multilogin X**, **Octo Browser** (plus regular **Firefox**). Other majors with Linux builds you can add yourself: **Indigo**, **Incogniton**. The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
+
+  <img src="docs/img/xfce-antidetect-menu.jpg" alt="XFCE Applications → Internet menu with preinstalled antidetect browsers" width="380">
+
 - **Everything else** — ask ChatGPT. "I'm on Ubuntu 26.04 XFCE, how do I X?" handles install/config grunt-work just fine. :)
 
 ---
@@ -126,3 +129,14 @@ sudo ./setup-and-run.sh
 ```
 
 You'll be asked for the RDP port, source CIDR, and a comma-separated user list. Set passwords afterwards with `sudo passwd <name>`.
+
+---
+
+## Troubleshooting
+
+| Symptom | Most likely cause |
+|---|---|
+| **Can't connect at all** | Provider's outer firewall blocks `rdp_port` (UFW alone can't help). Open inbound TCP on it. |
+| **Wrong password** | You pasted `cloud-init.yml` before editing it. Destroy the VM, edit, retry. |
+| **Connect → black screen** | First-run XFCE setup. Wait a minute, reconnect. |
+| **Laggy when using a proxy** | VM is too far from the phones. Move the VM, not the client. |
