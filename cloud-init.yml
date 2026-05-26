@@ -301,6 +301,12 @@ write_files:
                 # agent (tray icon). Without these, those three exit silently.
                 - libfuse2t64
                 - libayatana-appindicator3-1
+                # GNOME keyring + PAM glue. Without these, Electron-based
+                # tools (GoLogin etc.) can't talk to org.freedesktop.secrets
+                # and refuse to start. libpam-gnome-keyring unlocks the
+                # keyring at RDP login using the user's password.
+                - gnome-keyring
+                - libpam-gnome-keyring
                 - libnss3
                 - libgbm1
                 - libgtk-3-0
@@ -397,11 +403,6 @@ write_files:
               creates: /opt/antidetect/gologin/Gologin-4.2.9
             when: install_antidetect | bool
 
-          # GoLogin is Electron and assumes a Secret Service backend
-          # (gnome-keyring etc.) for credential storage. On a minimal XFCE
-          # install no provider answers org.freedesktop.secrets and the
-          # whole app aborts; --password-store=basic falls back to a plain
-          # encrypted file in ~/.config and unblocks startup.
           - name: antidetect — GoLogin launcher + desktop entry
             ansible.builtin.copy:
               dest: /usr/share/applications/gologin.desktop
@@ -413,7 +414,7 @@ write_files:
                 Type=Application
                 Name=GoLogin
                 Comment=GoLogin antidetect browser
-                Exec=/bin/sh -c 'chmod +x /opt/antidetect/gologin/Gologin-* && exec /opt/antidetect/gologin/Gologin-* --no-sandbox --password-store=basic'
+                Exec=/bin/sh -c 'chmod +x /opt/antidetect/gologin/Gologin-* && exec /opt/antidetect/gologin/Gologin-* --no-sandbox'
                 Icon=web-browser
                 Terminal=false
                 Categories=Network;WebBrowser;
