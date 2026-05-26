@@ -42,13 +42,13 @@ Pick your provider. Same shape everywhere: Ubuntu 26.04 (24.04 should work too),
 2. **Server Type** — Cloud Compute
 3. **Location** — datacentre nearest the phones · **Plan** — at least 2 GB RAM per user
 
-   ![Vultr — location & plan](docs/img/vultr-1-plan.jpg)
+   <img src="docs/img/vultr-1-plan.jpg" alt="Vultr — location & plan" width="70%">
 4. **Image** — Ubuntu **26.04 LTS x64**
 
-   ![Vultr — Ubuntu 26.04 LTS x64](docs/img/vultr-2-os.jpg)
+   <img src="docs/img/vultr-2-os.jpg" alt="Vultr — Ubuntu 26.04 LTS x64" width="70%">
 5. Scroll to **Additional Features** → toggle on **Cloud-Init User Data** → paste your edited file
 
-   ![Vultr — Cloud-Init User Data](docs/img/vultr-3-userdata.jpg)
+   <img src="docs/img/vultr-3-userdata.jpg" alt="Vultr — Cloud-Init User Data" width="70%">
 6. **Deploy Now** → wait ~5 min after it shows **Running**
 
 </details>
@@ -100,7 +100,7 @@ Username + password are the ones from your `cloud-init.yml`.
 
 Add PC → enter the VM's public IP as **PC name** → next to **Credentials** click **Add…** → enter your `xrdp_users` username and password.
 
-![macOS Microsoft Remote Desktop — Add PC + credentials](docs/img/rdp-macos-credentials.jpg)
+<img src="docs/img/rdp-macos-credentials.jpg" alt="macOS Microsoft Remote Desktop — Add PC + credentials" width="50%">
 
 </details>
 
