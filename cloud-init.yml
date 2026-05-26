@@ -479,6 +479,25 @@ write_files:
                 Categories=Network;WebBrowser;
             when: install_antidetect | bool
 
+          # Vendor .desktop files for AdsPower (Utility;) and Multilogin X
+          # (bare WebBrowser) don't land in XFCE's Internet menu — fix them
+          # to the canonical Network;WebBrowser; pair.
+          - name: antidetect — fix AdsPower / Multilogin X menu categories
+            ansible.builtin.lineinfile:
+              path: "{{ item }}"
+              regexp: '^Categories='
+              line: 'Categories=Network;WebBrowser;'
+            loop:
+              - /usr/share/applications/adspower_global.desktop
+              - /usr/share/applications/mlx.desktop
+            when: install_antidetect | bool
+
+          - name: antidetect — refresh desktop database
+            ansible.builtin.command:
+              cmd: update-desktop-database -q
+            changed_when: false
+            when: install_antidetect | bool
+
         handlers:
           - name: Restart xrdp
             ansible.builtin.systemd:
