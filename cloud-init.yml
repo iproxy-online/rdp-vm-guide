@@ -74,7 +74,50 @@ write_files:
               update_cache: true
               cache_valid_time: 3600
 
-          - name: Install xRDP, XFCE, fail2ban, ufw
+          # Mozilla's apt repo + pinning is needed to get a real .deb firefox
+          # on Ubuntu 22.04+; without this, `apt install firefox` pulls a
+          # transitional package that installs the snap.
+          - name: Mozilla apt — keyring dir
+            ansible.builtin.file:
+              path: /etc/apt/keyrings
+              state: directory
+              owner: root
+              group: root
+              mode: "0755"
+
+          - name: Mozilla apt — signing key
+            ansible.builtin.get_url:
+              url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+              dest: /etc/apt/keyrings/packages.mozilla.org.asc
+              owner: root
+              group: root
+              mode: "0644"
+
+          - name: Mozilla apt — repo
+            ansible.builtin.copy:
+              dest: /etc/apt/sources.list.d/mozilla.list
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main
+
+          - name: Mozilla apt — pin over Ubuntu snap stub
+            ansible.builtin.copy:
+              dest: /etc/apt/preferences.d/mozilla
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                Package: *
+                Pin: origin packages.mozilla.org
+                Pin-Priority: 1000
+
+          - name: Refresh apt cache (after Mozilla repo)
+            ansible.builtin.apt:
+              update_cache: true
+
+          - name: Install xRDP, XFCE, fail2ban, ufw, firefox
             ansible.builtin.apt:
               name:
                 - xfce4
@@ -86,6 +129,7 @@ write_files:
                 - fail2ban
                 - ufw
                 - python3-passlib
+                - firefox
               state: present
               install_recommends: false
 
