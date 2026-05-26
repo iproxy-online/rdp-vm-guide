@@ -47,20 +47,7 @@ Select all → copy again. You'll paste this edited version below.
 Pick your provider. Same shape everywhere: Ubuntu 26.04, ≥ 2 GB RAM per concurrent user, paste the file into "User Data".
 
 <details open>
-<summary><b>DigitalOcean</b></summary>
-
-1. **Create → Droplets**
-2. **Region** — datacentre nearest the phones
-3. **OS** — Ubuntu **26.04 (LTS) x64**
-4. **Size** — at least 2 GB RAM per user
-5. **Authentication** — root password is fine; you won't use SSH
-6. Open **Advanced options** → tick **Add Initialization scripts (cloud-init)** → paste your edited file
-7. **Create Droplet** → wait ~5 min after it shows **Active**
-
-</details>
-
-<details open>
-<summary><b>Vultr</b></summary>
+<summary><b>Vultr</b> — recommended, widest choice of locations</summary>
 
 1. **Deploy → Deploy New Server**
 2. **Server Type** — Cloud Compute
@@ -77,7 +64,20 @@ Pick your provider. Same shape everywhere: Ubuntu 26.04, ≥ 2 GB RAM per concur
 
 </details>
 
-<details open>
+<details>
+<summary><b>DigitalOcean</b></summary>
+
+1. **Create → Droplets**
+2. **Region** — datacentre nearest the phones
+3. **OS** — Ubuntu **26.04 (LTS) x64**
+4. **Size** — at least 2 GB RAM per user
+5. **Authentication** — root password is fine; you won't use SSH
+6. Open **Advanced options** → tick **Add Initialization scripts (cloud-init)** → paste your edited file
+7. **Create Droplet** → wait ~5 min after it shows **Active**
+
+</details>
+
+<details>
 <summary><b>Hetzner Cloud</b></summary>
 
 1. **+ Add Server**
