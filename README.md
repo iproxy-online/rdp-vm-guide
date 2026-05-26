@@ -107,10 +107,12 @@ Add PC → enter the VM's public IP as **PC name** → next to **Credentials** c
 
 You've got a working Linux desktop. Two pointers:
 
-- **Antidetect browser** — six come preinstalled, ready in **Applications → Internet**: **AdsPower Global**, **Camoufox**, **Dolphin Anty**, **GoLogin**, **Multilogin X**, **Octo Browser** (plus regular **Firefox**). Other majors with Linux builds you can add yourself: **Indigo**, **Incogniton**. The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
+- **Antidetect browser** — six come preinstalled, ready in **Applications → Internet**: **AdsPower Global**, **Camoufox**, **Dolphin Anty**, **GoLogin**, **Multilogin X**, **Octo Browser** (plus regular **Firefox**).
 
   <img src="docs/img/xfce-antidetect-menu.jpg" alt="XFCE Applications → Internet menu with preinstalled antidetect browsers" width="380">
-
+  
+  Other majors with Linux builds you can add yourself: **Indigo**, **Incogniton**. The notable holdouts are **Linken Sphere** and **Kameleo** — Windows/Mac only.
+  
 - **Everything else** — ask ChatGPT. "I'm on Ubuntu 26.04 XFCE, how do I X?" handles install/config grunt-work just fine. :)
 
 ---
