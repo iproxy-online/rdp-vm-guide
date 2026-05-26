@@ -367,6 +367,15 @@ write_files:
                   done
                 ) &
 
+                # Push xrdp's per-session env into user systemd so module-xrdp-sink
+                # (when present) can locate xrdp's chansrv sockets at
+                # /run/xrdp/sockdir/<uid>. linger keeps the user manager alive
+                # across reconnects, so on reconnect its pulseaudio has stale env
+                # — no DISPLAY, no XRDP_SOCKET_PATH — and module-xrdp-sink can't
+                # reconnect. Cheap and silent if audio isn't set up.
+                systemctl --user import-environment DISPLAY XAUTHORITY XRDP_SOCKET_PATH 2>/dev/null || true
+                systemctl --user restart pulseaudio.service 2>/dev/null || true
+
                 exec startxfce4
             loop: "{{ _xrdp_users }}"
             loop_control:
@@ -445,6 +454,105 @@ write_files:
               name: fail2ban
               enabled: true
               state: started
+
+          # ---------- RDP audio (PulseAudio + module-xrdp) ----------
+          # xrdp ships /etc/xrdp/pulse/default.pa with .ifexists guards for
+          # module-xrdp-{sink,source}, but Ubuntu doesn't package the
+          # modules. Build them from neutrinolabs/pulseaudio-module-xrdp
+          # on the host. Both 24.04 and 26.04 default to pipewire-pulse;
+          # installing the `pulseaudio` package replaces pipewire-pulse
+          # with classic PulseAudio (apt resolves the Conflicts: automatically),
+          # which is what module-xrdp needs. Each task is fail-soft so audio
+          # is best-effort: an older or unsupported Ubuntu silently no-ops
+          # here without aborting the rest of the playbook.
+
+          - name: Audio — install pulseaudio + module build deps
+            ansible.builtin.apt:
+              name:
+                - pulseaudio
+                - build-essential
+                - autoconf
+                - libtool
+                - libpulse-dev
+                - libltdl-dev
+                - dpkg-dev
+                - pkg-config
+                - git
+                - sudo
+                - ca-certificates
+              state: present
+              install_recommends: false
+            failed_when: false
+
+          # Glob, not a version-keyed dict, so 24.04 (pulse-16.1+dfsg1) and
+          # 26.04 (pulse-17.0+dfsg1) both resolve without per-release config.
+          - name: Audio — discover PulseAudio modules dir
+            ansible.builtin.shell: |
+              ls -d /usr/lib/pulse-*+dfsg*/modules 2>/dev/null | head -1
+            register: pa_modules_dir
+            changed_when: false
+            failed_when: false
+
+          # Upstream install_pulseaudio_sources_apt.sh runs `apt-get source
+          # pulseaudio`, which needs deb-src enabled. Ubuntu deb822 sources
+          # ship deb-only on 24.04/26.04; flip the Types: line in place.
+          - name: Audio — enable deb-src in ubuntu.sources
+            ansible.builtin.replace:
+              path: /etc/apt/sources.list.d/ubuntu.sources
+              regexp: '^Types: deb$'
+              replace: 'Types: deb deb-src'
+            register: debsrc
+            failed_when: false
+            when: pa_modules_dir.stdout | length > 0
+
+          - name: Audio — apt update after deb-src enable
+            ansible.builtin.apt:
+              update_cache: true
+            failed_when: false
+            when: debsrc is defined and (debsrc.changed | default(false))
+
+          - name: Audio — build and install pulseaudio-module-xrdp v0.8
+            ansible.builtin.shell:
+              cmd: |
+                set -e
+                WORK=$(mktemp -d)
+                cd "$WORK"
+                git clone --depth 1 --branch v0.8 \
+                  https://github.com/neutrinolabs/pulseaudio-module-xrdp.git
+                cd pulseaudio-module-xrdp
+                ./scripts/install_pulseaudio_sources_apt.sh
+                ./bootstrap
+                ./configure PULSE_DIR="$HOME/pulseaudio.src"
+                make -j"$(nproc)"
+                install -m 644 src/.libs/module-xrdp-sink.so   "{{ pa_modules_dir.stdout }}/"
+                install -m 644 src/.libs/module-xrdp-source.so "{{ pa_modules_dir.stdout }}/"
+                cd /
+                rm -rf "$WORK"
+              creates: "{{ pa_modules_dir.stdout }}/module-xrdp-sink.so"
+            environment:
+              DEBIAN_FRONTEND: noninteractive
+            failed_when: false
+            when: pa_modules_dir.stdout | length > 0
+
+          # xrdp's /etc/xrdp/pulse/default.pa already has .ifexists guards,
+          # but xrdp doesn't swap the user session's PA config — autospawned
+          # PA reads /etc/pulse/default.pa which doesn't load module-xrdp.
+          # Mirror the .ifexists guards there. Outside an xrdp session the
+          # modules fail to connect to chansrv and stay unregistered, so
+          # this is harmless when audio isn't built.
+          - name: Audio — wire module-xrdp into /etc/pulse/default.pa
+            ansible.builtin.blockinfile:
+              path: /etc/pulse/default.pa
+              marker: "# {mark} ANSIBLE MANAGED — pulseaudio-module-xrdp"
+              block: |
+                .ifexists module-xrdp-sink.so
+                load-module module-xrdp-sink
+                .endif
+                .ifexists module-xrdp-source.so
+                load-module module-xrdp-source
+                .endif
+            failed_when: false
+            when: pa_modules_dir.stdout | length > 0
 
           # ---------- antidetect browsers ----------
           # Six popular anti-detect browsers for managing multiple
