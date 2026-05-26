@@ -304,7 +304,10 @@ write_files:
                 # GNOME keyring + PAM glue. Without these, Electron-based
                 # tools (GoLogin etc.) can't talk to org.freedesktop.secrets
                 # and refuse to start. libpam-gnome-keyring unlocks the
-                # keyring at RDP login using the user's password.
+                # keyring at RDP login using the user's password, and
+                # (after pam-auth-update --enable gnome-keyring below)
+                # keeps the keyring password in sync if the user ever
+                # changes their login password.
                 - gnome-keyring
                 - libpam-gnome-keyring
                 - libnss3
@@ -327,6 +330,18 @@ write_files:
               path: /var/tmp/antidl
               state: directory
               mode: "0755"
+            when: install_antidetect | bool
+
+          # libpam-gnome-keyring's postinst only edits PAM if there are
+          # no manual modifications; with pwquality + our xrdp tweaks in
+          # the file, pam-auth-update bails out. Force it once so the
+          # gnome-keyring profile lands in common-password (the line that
+          # syncs keyring password ↔ login password).
+          - name: antidetect — enable gnome-keyring PAM profile
+            ansible.builtin.command:
+              cmd: pam-auth-update --force --enable gnome-keyring
+            register: pam_keyring
+            changed_when: "'gnome-keyring' in (pam_keyring.stdout | default(''))"
             when: install_antidetect | bool
 
           # AdsPower — .deb from vendor CDN. Idempotent via apt's own dedup.
