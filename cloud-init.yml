@@ -151,6 +151,7 @@ write_files:
               name:
                 - xfce4
                 - xfce4-goodies
+                - xfce4-xkb-plugin
                 - xrdp
                 - xorgxrdp
                 - dbus-x11
@@ -161,6 +162,116 @@ write_files:
                 - firefox
               state: present
               install_recommends: false
+
+          # First-login users picking "Use default config" get a panel without
+          # a layout indicator (xfce4-xkb-plugin is installed but not on the
+          # panel by default). Ship a system panel default with the xkb plugin
+          # already placed; otherwise users have to right-click → Add New Items.
+          # Existing per-user xfce4-panel.xml wins over this.
+          - name: System XFCE panel default — ship version with xkb plugin
+            ansible.builtin.copy:
+              dest: /etc/xdg/xfce4/panel/default.xml
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                <?xml version="1.0" encoding="UTF-8"?>
+
+                <channel name="xfce4-panel" version="1.0">
+                  <property name="configver" type="int" value="2"/>
+                  <property name="panels" type="array">
+                    <value type="int" value="1"/>
+                    <value type="int" value="2"/>
+                    <property name="dark-mode" type="bool" value="true"/>
+                    <property name="panel-1" type="empty">
+                      <property name="position" type="string" value="p=6;x=0;y=0"/>
+                      <property name="length" type="uint" value="100"/>
+                      <property name="position-locked" type="bool" value="true"/>
+                      <property name="icon-size" type="uint" value="16"/>
+                      <property name="size" type="uint" value="26"/>
+                      <property name="plugin-ids" type="array">
+                        <value type="int" value="1"/>
+                        <value type="int" value="2"/>
+                        <value type="int" value="3"/>
+                        <value type="int" value="4"/>
+                        <value type="int" value="5"/>
+                        <value type="int" value="6"/>
+                        <value type="int" value="7"/>
+                        <value type="int" value="8"/>
+                        <value type="int" value="9"/>
+                        <value type="int" value="10"/>
+                        <value type="int" value="19"/>
+                      </property>
+                    </property>
+                    <property name="panel-2" type="empty">
+                      <property name="autohide-behavior" type="uint" value="1"/>
+                      <property name="position" type="string" value="p=10;x=0;y=0"/>
+                      <property name="length" type="uint" value="1"/>
+                      <property name="position-locked" type="bool" value="true"/>
+                      <property name="size" type="uint" value="48"/>
+                      <property name="plugin-ids" type="array">
+                        <value type="int" value="11"/>
+                        <value type="int" value="12"/>
+                        <value type="int" value="13"/>
+                        <value type="int" value="14"/>
+                        <value type="int" value="15"/>
+                        <value type="int" value="16"/>
+                        <value type="int" value="17"/>
+                        <value type="int" value="18"/>
+                      </property>
+                    </property>
+                  </property>
+                  <property name="plugins" type="empty">
+                    <property name="plugin-1" type="string" value="applicationsmenu"/>
+                    <property name="plugin-2" type="string" value="tasklist">
+                      <property name="grouping" type="uint" value="1"/>
+                    </property>
+                    <property name="plugin-3" type="string" value="separator">
+                      <property name="expand" type="bool" value="true"/>
+                      <property name="style" type="uint" value="0"/>
+                    </property>
+                    <property name="plugin-4" type="string" value="pager"/>
+                    <property name="plugin-5" type="string" value="separator">
+                        <property name="style" type="uint" value="0"/>
+                    </property>
+                    <property name="plugin-6" type="string" value="systray">
+                        <property name="square-icons" type="bool" value="true"/>
+                    </property>
+                    <property name="plugin-7" type="string" value="separator">
+                      <property name="style" type="uint" value="0"/>
+                    </property>
+                    <property name="plugin-8" type="string" value="clock"/>
+                    <property name="plugin-9" type="string" value="separator">
+                      <property name="style" type="uint" value="0"/>
+                    </property>
+                    <property name="plugin-10" type="string" value="actions"/>
+                    <property name="plugin-11" type="string" value="showdesktop"/>
+                    <property name="plugin-12" type="string" value="separator"/>
+                    <property name="plugin-13" type="string" value="launcher">
+                      <property name="items" type="array">
+                        <value type="string" value="xfce4-terminal-emulator.desktop"/>
+                      </property>
+                    </property>
+                    <property name="plugin-14" type="string" value="launcher">
+                      <property name="items" type="array">
+                        <value type="string" value="xfce4-file-manager.desktop"/>
+                      </property>
+                    </property>
+                    <property name="plugin-15" type="string" value="launcher">
+                      <property name="items" type="array">
+                        <value type="string" value="xfce4-web-browser.desktop"/>
+                      </property>
+                    </property>
+                    <property name="plugin-16" type="string" value="launcher">
+                      <property name="items" type="array">
+                        <value type="string" value="xfce4-appfinder.desktop"/>
+                      </property>
+                    </property>
+                    <property name="plugin-17" type="string" value="separator"/>
+                    <property name="plugin-18" type="string" value="directorymenu"/>
+                    <property name="plugin-19" type="string" value="xkb"/>
+                  </property>
+                </channel>
 
           - name: Add xrdp service user to ssl-cert
             ansible.builtin.user:
@@ -222,6 +333,40 @@ write_files:
               content: |
                 export XDG_SESSION_TYPE=x11
                 export XDG_CURRENT_DESKTOP=XFCE
+
+                # Default layout is whatever xrdp sets at connect (usually `us`,
+                # or whatever the RDP client signals). Users add additional
+                # layouts + a toggle in XFCE Settings → Keyboard → Layout; the
+                # xkb panel indicator shows the current one.
+                #
+                # xrdp re-applies xrdp_keyboard.ini on every reconnect, which
+                # truncates the live X layout list back to one and breaks the
+                # toggle. Sessions linger across disconnects (KillDisconnected
+                # is false), so xfsettingsd's session-start re-apply doesn't
+                # repair it either. The watchdog below reads the user's xfconf
+                # intent every 5 s and re-applies via setxkbmap on mismatch,
+                # so the user's layout list + toggle survive reconnects with
+                # no per-host config required.
+                apply_xfconf_layout() {
+                  layout=$(xfconf-query -c keyboard-layout -p /Default/XkbLayout 2>/dev/null) || return 0
+                  [ -z "$layout" ] && return 0
+                  variant=$(xfconf-query -c keyboard-layout -p /Default/XkbVariant 2>/dev/null)
+                  options=$(xfconf-query -c keyboard-layout -p /Default/XkbOptions 2>/dev/null)
+                  setxkbmap -layout "$layout" \
+                    ${variant:+-variant "$variant"} \
+                    ${options:+-option "$options"} 2>/dev/null || true
+                }
+
+                (
+                  while sleep 5; do
+                    current=$(setxkbmap -query 2>/dev/null | awk '/^layout:/ {print $2}')
+                    [ -z "$current" ] && exit 0
+                    intent=$(xfconf-query -c keyboard-layout -p /Default/XkbLayout 2>/dev/null)
+                    [ -z "$intent" ] && continue
+                    [ "$current" != "$intent" ] && apply_xfconf_layout
+                  done
+                ) &
+
                 exec startxfce4
             loop: "{{ _xrdp_users }}"
             loop_control:
