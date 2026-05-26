@@ -40,6 +40,13 @@ write_files:
           rdp_port: 3389
           ufw_allow_from: any
           xrdp_users: []
+          install_antidetect: true
+          # Pinned versions — bump when vendors release. AdsPower in particular
+          # versions its download URLs; an unbumped version still works but the
+          # in-app updater will pull the latest after first launch.
+          adspower_version: "8.4.3"
+          camoufox_release_tag: "v150.0.2-beta.25"
+          camoufox_zip_name: "camoufox-150.0.2-alpha.26-lin.x86_64.zip"
 
         pre_tasks:
           - name: Sanity-check the OS
@@ -271,6 +278,206 @@ write_files:
               name: fail2ban
               enabled: true
               state: started
+
+          # ---------- antidetect browsers ----------
+          # Six popular anti-detect browsers for managing multiple
+          # identities (typically used with residential proxies). They share
+          # the same Chromium/Electron dependencies, so install those once.
+          # /var/tmp is used as staging because /tmp is tmpfs on Ubuntu cloud
+          # images and only ~800MB — not enough for the full download set.
+
+          - name: antidetect — install shared deps and unpackers
+            ansible.builtin.apt:
+              name:
+                - cpio
+                - rpm2cpio
+                - unzip
+                - libnss3
+                - libgbm1
+                - libgtk-3-0
+                - libasound2t64
+                - libxss1
+                - libxshmfence1
+                - libxtst6
+                - libsecret-1-0
+                - libnotify4
+                - libdrm2
+                - libxcb-dri3-0
+              state: present
+              install_recommends: false
+            when: install_antidetect | bool
+
+          - name: antidetect — staging dir
+            ansible.builtin.file:
+              path: /var/tmp/antidl
+              state: directory
+              mode: "0755"
+            when: install_antidetect | bool
+
+          # AdsPower — .deb from vendor CDN. Idempotent via apt's own dedup.
+          - name: antidetect — AdsPower download
+            ansible.builtin.get_url:
+              url: "https://version.adspower.net/software/linux-x64-global/{{ adspower_version }}/AdsPower-Global-{{ adspower_version }}-x64.deb"
+              dest: "/var/tmp/antidl/adspower.deb"
+              mode: "0644"
+            when: install_antidetect | bool
+            register: adspower_dl
+
+          - name: antidetect — AdsPower install
+            ansible.builtin.apt:
+              deb: /var/tmp/antidl/adspower.deb
+            when: install_antidetect | bool and adspower_dl is succeeded
+
+          # Multilogin X (mlx agent). Headless browser-launching daemon; UI
+          # is at app.multilogin.com which talks to the local agent.
+          - name: antidetect — Multilogin X download
+            ansible.builtin.get_url:
+              url: "https://mlxdists.s3.eu-west-3.amazonaws.com/mlx/latest/multiloginx-amd64.deb"
+              dest: "/var/tmp/antidl/multiloginx.deb"
+              mode: "0644"
+            when: install_antidetect | bool
+            register: mlx_dl
+
+          - name: antidetect — Multilogin X install
+            ansible.builtin.apt:
+              deb: /var/tmp/antidl/multiloginx.deb
+            when: install_antidetect | bool and mlx_dl is succeeded
+
+          # Dolphin Anty — vendor only publishes .rpm. alien chokes on its
+          # zstd-compressed payload on Ubuntu 26.04, so extract with
+          # rpm2cpio/cpio and relocate the payload manually.
+          - name: antidetect — Dolphin Anty download
+            ansible.builtin.get_url:
+              url: "https://dolphin-anty-cdn.com/anty-app/dolphin-anty-linux-x86_64-latest.rpm"
+              dest: "/var/tmp/antidl/dolphin.rpm"
+              mode: "0644"
+            when: install_antidetect | bool
+            register: dolphin_dl
+
+          - name: antidetect — Dolphin Anty unpack
+            ansible.builtin.shell:
+              cmd: |
+                set -e
+                rm -rf /var/tmp/antidl/dolphin-extract
+                mkdir -p /var/tmp/antidl/dolphin-extract
+                cd /var/tmp/antidl/dolphin-extract
+                rpm2cpio /var/tmp/antidl/dolphin.rpm | cpio -idm
+                rm -rf "/opt/Dolphin-Anty"
+                mv "opt/Dolphin Anty" /opt/Dolphin-Anty
+                install -m 644 usr/share/applications/dolphin_anty.desktop /usr/share/applications/dolphin_anty.desktop
+                sed -i 's|/opt/Dolphin Anty/dolphin_anty|/opt/Dolphin-Anty/dolphin_anty|g; s|^Exec=.*|Exec=/opt/Dolphin-Anty/dolphin_anty --no-sandbox %U|' /usr/share/applications/dolphin_anty.desktop
+                ln -sf /opt/Dolphin-Anty/dolphin_anty /usr/local/bin/dolphin-anty
+                chmod 4755 /opt/Dolphin-Anty/chrome-sandbox || true
+                rm -rf /var/tmp/antidl/dolphin-extract
+              creates: /opt/Dolphin-Anty/dolphin_anty
+            when: install_antidetect | bool and dolphin_dl is succeeded
+
+          # GoLogin — single ELF binary inside a tar.
+          - name: antidetect — GoLogin target dir
+            ansible.builtin.file:
+              path: /opt/antidetect/gologin
+              state: directory
+              mode: "0755"
+            when: install_antidetect | bool
+
+          - name: antidetect — GoLogin download + extract
+            ansible.builtin.unarchive:
+              src: "https://dl.gologin.com/gologin.tar"
+              dest: /opt/antidetect/gologin
+              remote_src: true
+              creates: /opt/antidetect/gologin/Gologin-4.2.9
+            when: install_antidetect | bool
+
+          - name: antidetect — GoLogin launcher + desktop entry
+            ansible.builtin.copy:
+              dest: /usr/share/applications/gologin.desktop
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                [Desktop Entry]
+                Type=Application
+                Name=GoLogin
+                Comment=GoLogin antidetect browser
+                Exec=/bin/sh -c 'chmod +x /opt/antidetect/gologin/Gologin-* && exec /opt/antidetect/gologin/Gologin-*'
+                Icon=web-browser
+                Terminal=false
+                Categories=Network;WebBrowser;
+            when: install_antidetect | bool
+
+          # Octo Browser — vendor ships a tarred ELF (file ext .AppImage but
+          # not actually an AppImage; just a static-linked binary).
+          - name: antidetect — Octo Browser target dir
+            ansible.builtin.file:
+              path: /opt/antidetect/octobrowser
+              state: directory
+              mode: "0755"
+            when: install_antidetect | bool
+
+          - name: antidetect — Octo Browser download + extract
+            ansible.builtin.unarchive:
+              src: "https://binaries.octobrowser.net/releases/installer/OctoBrowser.linux.tar.gz"
+              dest: /opt/antidetect/octobrowser
+              remote_src: true
+              creates: /opt/antidetect/octobrowser/OctoBrowser.AppImage
+            when: install_antidetect | bool
+
+          - name: antidetect — Octo Browser launcher
+            ansible.builtin.file:
+              path: /opt/antidetect/octobrowser/OctoBrowser.AppImage
+              mode: "0755"
+            when: install_antidetect | bool
+
+          - name: antidetect — Octo Browser desktop entry
+            ansible.builtin.copy:
+              dest: /usr/share/applications/octobrowser.desktop
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                [Desktop Entry]
+                Type=Application
+                Name=Octo Browser
+                Comment=Octo antidetect browser
+                Exec=/opt/antidetect/octobrowser/OctoBrowser.AppImage
+                Icon=web-browser
+                Terminal=false
+                Categories=Network;WebBrowser;
+            when: install_antidetect | bool
+
+          # Camoufox — open-source Firefox-based antidetect browser. No login
+          # required. Zip from a GitHub release.
+          - name: antidetect — Camoufox target dir
+            ansible.builtin.file:
+              path: /opt/antidetect/camoufox
+              state: directory
+              mode: "0755"
+            when: install_antidetect | bool
+
+          - name: antidetect — Camoufox download + extract
+            ansible.builtin.unarchive:
+              src: "https://github.com/daijro/camoufox/releases/download/{{ camoufox_release_tag }}/{{ camoufox_zip_name }}"
+              dest: /opt/antidetect/camoufox
+              remote_src: true
+              creates: /opt/antidetect/camoufox/camoufox
+            when: install_antidetect | bool
+
+          - name: antidetect — Camoufox launcher + desktop entry
+            ansible.builtin.copy:
+              dest: /usr/share/applications/camoufox.desktop
+              owner: root
+              group: root
+              mode: "0644"
+              content: |
+                [Desktop Entry]
+                Type=Application
+                Name=Camoufox
+                Comment=Camoufox (open-source Firefox antidetect fork)
+                Exec=/opt/antidetect/camoufox/camoufox
+                Icon=firefox
+                Terminal=false
+                Categories=Network;WebBrowser;
+            when: install_antidetect | bool
 
         handlers:
           - name: Restart xrdp
