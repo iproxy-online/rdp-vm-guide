@@ -24,11 +24,11 @@ write_files:
         # a terminal inside their RDP session). Give this to one
         # account only, and pick a strong password for it.
         #
-        # IMPORTANT: change the password below before deploying — these
-        # accounts log in over the plain internet. Add more users by
-        # uncommenting / adding lines in the same shape.
-        - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
-        # - { name: bob,   password: "ChangeMe-Bob-2026"   }
+        # The playbook ABORTS if any password still starts with
+        # "CHANGE-ME-" or is shorter than 12 chars. Replace the
+        # placeholders below with real strong passwords before deploying.
+        - { name: alice, password: "CHANGE-ME-pick-a-long-random-string", admin: true }
+        # - { name: bob,   password: "CHANGE-ME-pick-a-different-long-random-string" }
       # <<<<<<<<<<<<<<<<<<<<<<< END EDIT  <<<<<<<<<<<<<<<<<<<<<<<
 
   - path: /opt/xrdp-multiuser/site.yml
@@ -67,6 +67,24 @@ write_files:
                 - rdp_port | int <= 65535
                 - xrdp_users | length > 0
               fail_msg: "Need rdp_port in 1024-65535 and at least one entry in xrdp_users."
+
+          # Refuse to deploy if any user still has the placeholder password
+          # or a trivially short one. These accounts log in over the plain
+          # internet, so a leftover default is the same as no password at all.
+          - name: Reject default / weak passwords
+            ansible.builtin.assert:
+              that:
+                - (item.password | default('')) is not match('^CHANGE-ME-')
+                - (item.password | default('')) | length >= 12
+              fail_msg: >-
+                User '{{ item.name }}' has a placeholder or too-short password
+                ({{ (item.password | default('') | length) }} chars).
+                Edit vars.yml — passwords must not start with "CHANGE-ME-"
+                and must be at least 12 characters.
+            loop: "{{ xrdp_users }}"
+            loop_control:
+              label: "{{ item.name }}"
+            no_log: true
 
         tasks:
           - name: Normalize xrdp_users to a list of dicts
