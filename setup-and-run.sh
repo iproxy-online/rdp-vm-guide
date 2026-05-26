@@ -11,7 +11,9 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLAYBOOK="$HERE/site.yml"
+CLOUD_INIT="$HERE/cloud-init.yml"
+PLAYBOOK="$(mktemp /tmp/xrdp-site.XXXXXX.yml)"
+trap 'rm -f "$PLAYBOOK"' EXIT
 
 # ---- 0. preflight -----------------------------------------------------------
 
@@ -26,13 +28,13 @@ if [[ ! -r /etc/os-release ]]; then
 fi
 # shellcheck disable=SC1091
 . /etc/os-release
-if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "26.04" ]]; then
-  echo "ERROR: Ubuntu 26.04 only (got ${ID:-?} ${VERSION_ID:-?})." >&2
+if [[ "${ID:-}" != "ubuntu" ]] || ! printf '%s\n' "24.04" "${VERSION_ID:-0}" | sort -V -C; then
+  echo "ERROR: Ubuntu 24.04 or newer required (got ${ID:-?} ${VERSION_ID:-?})." >&2
   exit 1
 fi
 
-if [[ ! -f "$PLAYBOOK" ]]; then
-  echo "ERROR: site.yml not found next to this script ($PLAYBOOK)" >&2
+if [[ ! -f "$CLOUD_INIT" ]]; then
+  echo "ERROR: cloud-init.yml not found next to this script ($CLOUD_INIT)" >&2
   exit 1
 fi
 
@@ -83,15 +85,36 @@ print(json.dumps(xs))
 PY
 )"
 
-# ---- 3. install ansible -----------------------------------------------------
+# ---- 3. install ansible + python3-yaml --------------------------------------
 
-if ! command -v ansible-playbook >/dev/null 2>&1; then
-  echo ">>> installing ansible"
+NEED_INSTALL=()
+command -v ansible-playbook >/dev/null 2>&1 || NEED_INSTALL+=(ansible)
+python3 -c "import yaml" 2>/dev/null            || NEED_INSTALL+=(python3-yaml)
+if (( ${#NEED_INSTALL[@]} )); then
+  echo ">>> installing: ${NEED_INSTALL[*]}"
   apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ansible
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${NEED_INSTALL[@]}"
 fi
 
-# ---- 4. run the playbook ----------------------------------------------------
+# ---- 4. extract the playbook from cloud-init.yml ----------------------------
+# cloud-init.yml is the single source of truth. The playbook is embedded in it
+# under write_files[/opt/xrdp-multiuser/site.yml]; we pull it out into a temp
+# file so ansible-playbook can run it. site.yml is intentionally NOT shipped.
+
+python3 - "$CLOUD_INIT" "$PLAYBOOK" <<'PY'
+import sys, yaml
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    cfg = yaml.safe_load(f)
+for entry in cfg.get("write_files", []) or []:
+    if entry.get("path") == "/opt/xrdp-multiuser/site.yml":
+        with open(dst, "w") as out:
+            out.write(entry["content"])
+        sys.exit(0)
+sys.exit("ERROR: embedded site.yml not found in cloud-init.yml write_files")
+PY
+
+# ---- 5. run the playbook ----------------------------------------------------
 
 echo
 echo ">>> running playbook"
@@ -117,7 +140,7 @@ ansible-playbook \
   -e "$EXTRA_VARS" \
   "$PLAYBOOK"
 
-# ---- 5. post-run hints ------------------------------------------------------
+# ---- 6. post-run hints ------------------------------------------------------
 
 PUBLIC_IP="$(python3 -c 'import urllib.request as u; print(u.urlopen("https://api.ipify.org", timeout=3).read().decode())' 2>/dev/null || hostname -I | awk '{print $1}')"
 

@@ -46,8 +46,8 @@ write_files:
             ansible.builtin.assert:
               that:
                 - ansible_facts['distribution'] == "Ubuntu"
-                - ansible_facts['distribution_version'] == "26.04"
-              fail_msg: "This playbook targets Ubuntu 26.04 only."
+                - ansible_facts['distribution_version'] is version('24.04', '>=')
+              fail_msg: "This playbook targets Ubuntu 24.04 or newer (got {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }})."
 
           - name: Sanity-check inputs
             ansible.builtin.assert:
@@ -74,7 +74,7 @@ write_files:
               update_cache: true
               cache_valid_time: 3600
 
-          - name: Install xRDP, XFCE, Firefox, fail2ban, ufw
+          - name: Install xRDP, XFCE, fail2ban, ufw
             ansible.builtin.apt:
               name:
                 - xfce4
@@ -83,7 +83,6 @@ write_files:
                 - xorgxrdp
                 - dbus-x11
                 - xubuntu-wallpapers
-                - firefox
                 - fail2ban
                 - ufw
                 - python3-passlib
@@ -190,9 +189,12 @@ write_files:
               group: root
               mode: "0644"
               content: |
+                # xrdp writes auth events to the systemd journal via
+                # xrdp-sesexec (a child of xrdp-sesman.service). The line we
+                # care about looks like:
+                #   [INFO ] AUTHFAIL: user=alice ip=1.2.3.4 time=1779748324
                 [Definition]
-                failregex = ^.*\[ERROR\] .*authentication failed.*from <HOST>.*$
-                            ^.*\[INFO \] .*login failed for user .* from <HOST>.*$
+                failregex = ^.*\[INFO \] AUTHFAIL: user=\S+ ip=<HOST> time=\d+.*$
                 ignoreregex =
             notify: Restart fail2ban
 
@@ -204,23 +206,15 @@ write_files:
               mode: "0644"
               content: |
                 [xrdp]
-                enabled  = true
-                port     = {{ rdp_port }}
-                filter   = xrdp
-                logpath  = /var/log/xrdp-sesman.log
-                maxretry = 5
-                findtime = 10m
-                bantime  = 1h
+                enabled      = true
+                port         = {{ rdp_port }}
+                filter       = xrdp
+                backend      = systemd
+                journalmatch = _SYSTEMD_UNIT=xrdp-sesman.service
+                maxretry     = 5
+                findtime     = 10m
+                bantime      = 1h
             notify: Restart fail2ban
-
-          - name: Ensure xrdp log exists so fail2ban can attach to it
-            ansible.builtin.file:
-              path: /var/log/xrdp-sesman.log
-              state: touch
-              owner: root
-              group: root
-              mode: "0640"
-            changed_when: false
 
           - name: Enable and start xrdp
             ansible.builtin.systemd:
