@@ -321,6 +321,9 @@ write_files:
                 - libnotify4
                 - libdrm2
                 - libxcb-dri3-0
+                # libwayland-server0 — Octo Browser's PyInstaller stub
+                # imports it transitively via PyQt6 at startup.
+                - libwayland-server0
               state: present
               install_recommends: false
             when: install_antidetect | bool
