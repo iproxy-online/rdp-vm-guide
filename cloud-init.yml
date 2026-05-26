@@ -23,8 +23,12 @@ write_files:
         # `admin: true` = user gets sudo (runs apt update etc. from
         # a terminal inside their RDP session). Give this to one
         # account only, and pick a strong password for it.
+        #
+        # IMPORTANT: change the password below before deploying — these
+        # accounts log in over the plain internet. Add more users by
+        # uncommenting / adding lines in the same shape.
         - { name: alice, password: "ChangeMe-Alice-2026", admin: true }
-        - { name: bob,   password: "ChangeMe-Bob-2026"   }
+        # - { name: bob,   password: "ChangeMe-Bob-2026"   }
       # <<<<<<<<<<<<<<<<<<<<<<< END EDIT  <<<<<<<<<<<<<<<<<<<<<<<
 
   - path: /opt/xrdp-multiuser/site.yml
