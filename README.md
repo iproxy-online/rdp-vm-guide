@@ -7,6 +7,8 @@
 
 </div>
 
+> *Your browser isn't slow — your geography is.* Every HTTP request through a far-away mobile proxy crosses the ocean twice, and you feel every millisecond. RDP doesn't care; HTTP does. Park the browser on a VM next to the phones and the lag is just gone. **Five minutes. Permanent.**
+
 ## Quickstart
 
 You'll do this once per VM, in about five minutes.
